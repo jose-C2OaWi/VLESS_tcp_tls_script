@@ -400,7 +400,8 @@ menu() {
         ;;
     1)
         tls_mode="acme"
-        install_v2ray_tcp_tls_acme
+        #install_v2ray_tcp_tls_acme
+        echo "未完成"
         ;;
     2)
         tls_mode="self"

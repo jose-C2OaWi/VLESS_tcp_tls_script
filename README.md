@@ -42,5 +42,5 @@ V2Ray 服务端配置： `/usr/local/etc/v2ray/config.json`
 
 ## 致谢
 
-* 本脚本受[wulabing](https://github.com/wulabing/V2Ray_ws-tls_bash_onekey) 和 [misaka-blog](https://github.com/misaka-gh/Xray-script) （原始库已经由于作者个人原因删除了，这只是一个存档。）
+* 本脚本受[wulabing](https://github.com/wulabing/V2Ray_ws-tls_bash_onekey) 和 [misaka-blog](https://github.com/misaka-gh/Xray-script) （原始库已经由于作者个人原因删除了，这只是一个存档）启发。
 * 本脚本依赖[V2Ray 官方安装脚本](https://github.com/v2fly/fhs-install-v2ray)

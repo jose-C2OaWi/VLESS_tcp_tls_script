@@ -24,7 +24,7 @@ v2ray_conf_dir="/usr/local/etc/v2ray"
 #v2ray_info_file="$v2ray_info_dir/v2ray_info.inf"
 #v2ray_config_file="$v2ray_info_dir/01_vless_tcp_tls_fallback.json"
 v2ray_log_dir="/var/log/v2ray"
-v2ray_cert_dir="$v2ray_conf_dir/cert"
+v2ray_cert_dir="/usr/local/etc/v2ray/cert"
 v2ray_bin_dir="/usr/local/bin/v2ray"
 v2ctl_bin_dir="/usr/local/bin/v2ctl"
 v2ray_access_log="/var/log/v2ray/access.log"
@@ -154,11 +154,16 @@ get_config() {
     yellow "如果回落设置为本地端口，请自行设置Web服务器"
     yellow "可以自行在配置文件中添加其他回落"
     #echo $tls_mode
+    mkdir -p $v2ray_cert_dir/${tls_mode}
     if [[ "${tls_mode}" == "self" ]]; then
-        mkdir -p $v2ray_cert_dir
         read -p "请输入证书域名（自签证书，默认www.apple.com）：" CERT_DOMAIN
         [[ -z "${CERT_DOMAIN}" ]] && CERT_DOMAIN="www.apple.com"        
-    else # [["${tls_mode}"=="acme"]]
+    else # [["${tls_mode}"=="acme]]
+        read -p "请输入服务器域名：" DOMAIN
+	if [[ -z "${DOMAIN}" ]]; then
+	    red " 域名输入错误，请重新输入！"
+            exit 1
+        fi
         get_acme_cert
     fi
     yellow "证书域名(host)：$CERT_DOMAIN"
@@ -169,10 +174,69 @@ get_config() {
 
 get_self_cert() {
     $INS install openssl
-    openssl genrsa -out $v2ray_cert_dir/v2ray.ca.self.key 2048
+    openssl genrsa -out $v2ray_cert_dir/self/v2ray.ca.self.key 2048
     # 生成CA证书
-    openssl req -new -x509 -days 3650 -key $v2ray_cert_dir/v2ray.ca.key -subj "/C=US/O=DigiCert Inc. /CN=DigiCert Local Root CA" -out $v2ray_cert_dir/v2ray.ca.self.crt
-    chown -R nobody:nogroup $v2ray_cert_dir
+    openssl req -new -x509 -days 3650 -key $v2ray_cert_dir/self/v2ray.ca.key -subj "/C=US/O=DigiCert Inc. /CN=DigiCert Local Root CA" -out $v2ray_cert_dir/self/v2ray.ca.self.crt
+    chown -R nobody:nogroup $v2ray_cert_dir/self
+}
+
+get_acme_cert() {
+    res=$(netstat -ntlp | grep -E ':80 |:443 ')    
+    if [[ "${res}" != "" ]]; then
+	red "其他进程占用了80或443端口，请先关闭再运行一键脚本"
+	echo " 端口占用信息如下："
+	echo ${res}
+	exit 1
+    fi
+
+    $INS install socat openssl
+    if [[ $SYSTEM == "CentOS" ]]; then
+	$INS install cronie
+	systemctl start crond
+	systemctl enable crond
+    else
+	$INS install cron
+        systemctl start cron
+	systemctl enable cron
+    fi
+    autoEmail=$(date +%s%N | md5sum | cut -c 1-16)
+    curl -sL https://get.acme.sh | sh -s email=$autoEmail@gmail.com
+    source ~/.bashrc
+    ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+    #~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    ~/.acme.sh/acme.sh --set-default-ca --server zerossl
+    if [[ -n $(curl -sm8 ip.sb | grep ":") ]]; then
+        ~/.acme.sh/acme.sh  --issue -d ${DOMAIN} --standalone --keylength ec-256 --listen-v6
+    else
+        ~/.acme.sh/acme.sh  --issue -d ${DOMAIN} --standalone --keylength ec-256
+    fi
+
+    [[ -f ~/.acme.sh/${DOMAIN}_ecc/ca.cer ]] || {
+			red "抱歉，证书申请失败"
+			green "建议如下："
+			yellow " 1. 自行检测防火墙是否打开，如防火墙正在开启，请关闭防火墙或放行80端口"
+			yellow " 2. 同一域名多次申请触发Acme.sh官方风控，请更换域名或等待7天后再尝试执行脚本"
+			yellow " 3. 脚本可能跟不上时代，建议发布到GitHub Issues"
+			exit 1
+    }
+
+    ACME_CERT_FILE=$v2ray_cert_dir/acme/${DOMAIN}.pem
+    ACME_KEY_FILE=$v2ray_cert_dir/acme/${DOMAIN}.key
+
+    ~/.acme.sh/acme.sh --install-cert -d $DOMAIN --ecc \
+		--key-file $ACME_KEY_FILE \
+		--fullchain-file $ACME_CERT_FILE \
+		--reloadcmd "systemctl restart v2ray"
+
+    [[ -f $ACME_CERT_FILE && -f $ACME_KEY_FILE ]] || {
+			red "抱歉，证书申请失败"
+			green "建议如下："
+			yellow " 1. 自行检测防火墙是否打开，如防火墙正在开启，请关闭防火墙或放行80端口"
+			yellow " 2. 同一域名多次申请触发Acme.sh官方风控，请更换域名或等待7天后再尝试执行脚本"
+			yellow " 3. 脚本可能跟不上时代，建议发布到GitHub Issues"
+			exit 1
+    }
+    chown -R nobody:nogroup $v2ray_cert_dir/acme
 }
 
 #deprecated
@@ -208,6 +272,61 @@ EOF
     # The key shouldn't be readable to others
 }
 
+v2ray_conf_add_acme() {
+	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
+	cat >$v2ray_conf_dir/config.json <<-EOF
+		{
+		  "inbounds": [{
+		    "port": $PORT,
+		    "protocol": "vless",
+		    "settings": {
+		      "clients": [
+		        {
+		          "id": "$uuid",
+		          "level": 0
+		        }
+		      ],
+		      "decryption": "none",
+		      "fallbacks": [
+		          {
+		              "dest": "$FALLBACK_DEST"
+		          }
+		      ]
+		    },
+		    "streamSettings": {
+		        "network": "tcp",
+		        "security": "tls",
+		        "tlsSettings": {
+		            "serverName": "$DOMAIN",
+		            "certificates": [
+		                {
+                                   "usage": "encipherment",
+                                   "cert_type": "$tls_mode",
+                                   "certificateFile": "$ACME_CERT_FILE",
+                                   "keyFile": "$ACME_KEY_FILE"
+		                }
+		            ]
+		        }
+		    }
+		  }],
+                  "outbounds": [{
+	              "protocol": "freedom",
+	              "settings": {}
+	            },{
+	              "protocol": "blackhole",
+	              "settings": {},
+	              "tag": "blocked"
+	            }],
+                  "log": {
+                         "loglevel": "warning",
+                         "access": "/var/log/v2ray/access.log",
+                         "error": "/var/log/v2ray/error.log"
+                  }
+		}
+EOF
+        chown -R nobody:nogroup $v2ray_log_dir
+}
+
 v2ray_conf_add() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
 	cat >$v2ray_conf_dir/config.json <<-EOF
@@ -238,8 +357,8 @@ v2ray_conf_add() {
 		                {
                                    "usage": "issue",
                                    "cert_type": "$tls_mode",
-                                   "certificateFile": "$v2ray_cert_dir/v2ray.ca.crt",
-                                   "keyFile": "$v2ray_cert_dir/v2ray.ca.key"
+                                   "certificateFile": "$v2ray_cert_dir/self/v2ray.ca.crt",
+                                   "keyFile": "$v2ray_cert_dir/self/v2ray.ca.key"
 		                }
 		            ]
 		        }
@@ -255,8 +374,8 @@ v2ray_conf_add() {
 	            }],
                   "log": {
                          "loglevel": "warning",
-                         "error": "/var/log/v2ray/error.log",
-                         "access": "/var/log/v2ray/access.log"
+                         "access": "/var/log/v2ray/access.log",
+                         "error": "/var/log/v2ray/error.log"
                   }
 		}
 EOF
@@ -320,7 +439,8 @@ stop_process_systemd() {
 }
 
 show_access_log() {
-    [ -f ${v2ray_access_log} ] && tail -f ${v2ray_access_log} || red "访问文件不存在"
+    [ -f ${v2ray_access_log} ] && tail -f ${v2ray_access_log} || red "访问日志文件不存在"
+    echo "访问日志会产生大量带有IP记录的访问记录，建议调试结束后将日志文件删除并关闭日志记录"
 }
 
 show_error_log() {
@@ -332,8 +452,8 @@ install_v2ray_tcp_tls_acme() {
     open_bbr
     get_config
     v2ray_install
-    port_exist_check "${port}"
-    v2ray_conf_add
+    port_exist_check "${PORT}"
+    v2ray_conf_add_acme
     get_info
     VLESS_link_share    
     start_process_systemd
@@ -365,7 +485,7 @@ uninstall() {
     read -r delete_config
     case $delete_config in
     [yY][eE][sS] | [yY])
-            rm -r $v2ray_cert_dir/*
+            rm -r $v2ray_cert_dir/self/*
             ;;
     *) ;;
     
@@ -382,7 +502,7 @@ menu() {
     echo -e "\thttps://github.com/jose-C2OaWi\n"
     echo -e "—————————————— 安装向导 ——————————————"""
     echo -e "${Green}0.${Plain}  升级 脚本"
-    echo -e "${Green}1.${Plain}  安装 v2ray (tcp+tls) acme证书（开发中） "    
+    echo -e "${Green}1.${Plain}  安装 v2ray (tcp+tls) acme证书 "
     echo -e "${Green}2.${Plain}  安装 v2ray (tcp+tls) 自签证书 "
     echo -e "${Green}3.${Plain}  升级 v2ray core"
     echo -e "—————————————— 查看信息 ——————————————"
@@ -400,8 +520,7 @@ menu() {
         ;;
     1)
         tls_mode="acme"
-        #install_v2ray_tcp_tls_acme
-        echo "未完成"
+        install_v2ray_tcp_tls_acme
         ;;
     2)
         tls_mode="self"

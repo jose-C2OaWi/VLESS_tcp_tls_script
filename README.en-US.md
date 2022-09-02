@@ -1,4 +1,4 @@
-# V2Ray, vless+tcp+tls self-signed certificate with fallbacks
+# V2Ray, vless+tcp+tls self-signed certificate (also acme.sh cert) with fallbacks
 
 > Currently the script only support Chinese language.
 
@@ -20,18 +20,45 @@ wget -N --no-check-certificate -q -O install.sh "https://raw.githubusercontent.c
 
 ## Why VLESS+TCP+TLS with self-signed certificate
 
+> If this configuration is not for you, you may still choose acme.sh to get ssl certificate.
+
 * VLESS is light protocol and is designed to operate in correctly configured TLS connections, as it does not provide encryption on its own. Compared to VMess, it saves the cost of encrption and decryption.
 * The common configuration of VMess+Websocket+TLS+Web Server or VMess+H2+TLS+Web Server use web servers(nginx, caddy, etc.) to forward the proxied traffic. However, these web servers are not designed for it and may cause low performance.
 * Trojan uses the similar idea, it utilizes the TLS encryption and uses a local web server as camouflage.
 * However, all these methods require a valid domain name, which can be expensive. What's more, using Let's Encrypt or other tools to acquire SSL for circumventing sensorship may bring trouble to normal website.
 * WebSocket is generally [less efficient](https://guide.v2fly.org/en_US/advanced/not_recommend.html) than TCP. Using WebSocket is because Nginx / Caddy / Apache can only use WebSocket and use TLS because it can be encrypted, it obfuscates traffic like HTTPS. This is from the official [document](https://guide.v2fly.org/en_US/advanced/wss_and_web.html). 
 * Since V2Ray version 4.27.2, VLESS has fallbacks object to forward traffic after TLS decryption, which means V2Ray can be able to forward the traffic failed  to the camouflage website, or forward other H2 or WebSocket traffic to specific address.
+* Notice: This script only configured the default destination of fallbacks, other fallbacks options require furthre configuration.
 
 ## Directories of relevant files
 
 V2Ray server's configuration： `/usr/local/etc/v2ray/config.json`
 
 self-signed CA certificate： `/usr/local/etc/v2ray/cert/v2ray.ca.crt/` 和 `/usr/local/etc/v2ray/cert/v2ray.ca.crt/` Please note the permission and expiration date of the certificate.
+
+ACME certificate directory： `/usr/local/etc/v2ray/cert/acme/`
+
+## Client Configuration
+
+* For certificate from ACME.sh, just copy the link to the client and all things should work fine.
+* For self-signed certificate, you can either:
+  *  import the certificate into the system root CA. (Not recommended)
+  * Some GUI v2ray frontend support self-signed certificate, such as [Nekoray](https://github.com/MatsuriDayo/nekoray) on Linux and Windows and [Sagernet](https://github.com/SagerNet/SagerNet) on Android.
+  *  manually set the certificate in v2ray-core config, in streamSettings -> tlsSettings -> certificates, fill the certificate text or file in:
+  ```
+  "certificates": [
+                {"usage": "verify",
+                 "certificateFile": "./Path/to/your/self-signed.crt",
+                 "certificate":[
+                 "----BEGIN CERTIFICATE----",
+                 ....
+                 "----END CERTIFICATE----"
+                 ],
+                 "cert_type": "self" //Not built-in, just comment in script
+                }
+            ]
+  ```
+  
 
 ## Notice
 

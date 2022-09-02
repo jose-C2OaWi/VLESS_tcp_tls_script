@@ -239,39 +239,6 @@ get_acme_cert() {
     chown -R nobody:nogroup $v2ray_cert_dir/acme
 }
 
-#deprecated
-get_self_cert_by_v2ctl() {
-    local SELF_CA=$(v2ctl cert --ca --expire=87600h)
-    SELF_CA=${SELF_CA:1}
-    SELF_CA=${SELF_CA%\}*}
-    SELF_CA_CERT=${SELF_CA%*"\],"}
-    # This two steps are intended to remove two {} brackets
-    local SELF_CA_CERT=${SELF_CA%\],*}
-    # Get CA CERT and output plain text
-    SELF_CA_CERT=${SELF_CA_CERT#*\[}
-    SELF_CA_CERT=${SELF_CA_CERT//\"}
-    SELF_CA_CERT=${SELF_CA_CERT//\ }
-    SELF_CA_CERT=${SELF_CA_CERT//,}
-    # write in the file
-    cat >$v2ray_cert_dir/v2ray.ca.crt <<-EOF
-$SELF_CA_CERT
-EOF
-    # Get CA Key
-    local SELF_CA_KEY=${SELF_CA#*\],}
-    SELF_CA_KEY=${SELF_CA_KEY#*\[}
-    SELF_CA_KEY=${SELF_CA_KEY%\]*}
-    SELF_CA_KEY=${SELF_CA_KEY//\"}
-    SELF_CA_KEY=${SELF_CA_KEY//\ }
-    SELF_CA_KEY=${SELF_CA_KEY//,}
-    # write in the file
-    cat >$v2ray_cert_dir/v2ray.ca.key <<-EOF
-$SELF_CA_KEY
-EOF
-    chown -R nobody:nogroup $v2ray_cert_dir
-    # chmod 644 $v2ray_cert_dir/v2ray.ca.key
-    # The key shouldn't be readable to others
-}
-
 v2ray_conf_add_acme() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
 	cat >$v2ray_conf_dir/config.json <<-EOF
@@ -488,6 +455,18 @@ uninstall() {
             rm -r $v2ray_cert_dir/self/*
             ;;
     *) ;;
+
+    esac
+
+    green " 是否删除acme.sh及证书文件[Y/N]?"
+    read -r delete_acme
+    case $delete_acme in
+    [yY][eE][sS] | [yY])
+            rm -rf $v2ray_cert_dir/acme/*
+            ~/.acme.sh/acme.sh --uninstall
+            rm -rf ~/.acme.sh
+            ;;
+    *) ;;
     
     esac
 
@@ -496,12 +475,11 @@ uninstall() {
 }
 
 menu() {
-    #update_sh
-    echo -e "\t v2ray 安装管理脚本 "
+    echo -e "\t v2ray 安装管理脚本 版本"
     echo -e "\t---authored by jose-C2OaWi---"
     echo -e "\thttps://github.com/jose-C2OaWi\n"
     echo -e "—————————————— 安装向导 ——————————————"""
-    echo -e "${Green}0.${Plain}  升级 脚本"
+    echo -e "${Green}0.${Plain} 退出 "
     echo -e "${Green}1.${Plain}  安装 v2ray (tcp+tls) acme证书 "
     echo -e "${Green}2.${Plain}  安装 v2ray (tcp+tls) 自签证书 "
     echo -e "${Green}3.${Plain}  升级 v2ray core"
@@ -510,13 +488,13 @@ menu() {
     echo -e "${Green}5.${Plain}  查看 实时错误日志"
     echo -e "${Green}6.${Plain}  查看 v2ray 配置信息"
     echo -e "—————————————— 其他选项 ——————————————"
-    echo -e "${Green}7.${Plain} 卸载 v2ray"
-    echo -e "${Green}8.${Plain} 退出 \n"
+    echo -e "${Green}7.${Plain} 卸载 v2ray\n"
+
 
     read -rp "请输入数字：" menu_num
     case $menu_num in
     0)
-        update_sh
+        exit 0
         ;;
     1)
         tls_mode="acme"
@@ -543,10 +521,6 @@ menu() {
         source '/etc/os-release'
         uninstall
         ;;
-    8)
-        exit 0
-        ;;
-    
     *)
         red "请输入正确的数字"
         ;;

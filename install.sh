@@ -19,6 +19,7 @@ yellow() {
 }
 
 v2ray_conf_dir="/usr/local/etc/v2ray"
+v2ray_conf_file="$v2ray_conf_dir/config.json"
 
 #v2ray_info_dir="$HOME/v2ray"
 #v2ray_info_file="$v2ray_info_dir/v2ray_info.inf"
@@ -174,9 +175,10 @@ get_config() {
 
 get_self_cert() {
     $INS install openssl
-    openssl genrsa -out $v2ray_cert_dir/self/v2ray.ca.self.key 2048
+    # openssl genrsa -out $v2ray_cert_dir/self/v2ray.ca.self.key 2048
+    openssl ecparam -genkey -name prime256v1 -noout -out $v2ray_cert_dir/self/v2ray.ca.key
     # 生成CA证书
-    openssl req -new -x509 -days 3650 -key $v2ray_cert_dir/self/v2ray.ca.key -subj "/C=US/O=DigiCert Inc. /CN=DigiCert Local Root CA" -out $v2ray_cert_dir/self/v2ray.ca.self.crt
+    openssl req -new -x509 -days 3650 -key $v2ray_cert_dir/self/v2ray.ca.key -out $v2ray_cert_dir/self/v2ray.ca.crt -subj "/C=US/O=DigiCert Inc. /CN=DigiCert Local Root CA"
     chown -R nobody:nogroup $v2ray_cert_dir/self
 }
 
@@ -241,7 +243,7 @@ get_acme_cert() {
 
 v2ray_conf_add_acme() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
-	cat >$v2ray_conf_dir/config.json <<-EOF
+	cat >$v2ray_conf_config <<-EOF
 		{
 		  "inbounds": [{
 		    "port": $PORT,
@@ -296,7 +298,7 @@ EOF
 
 v2ray_conf_add() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
-	cat >$v2ray_conf_dir/config.json <<-EOF
+	cat >$v2ray_conf_config <<-EOF
 		{
 		  "inbounds": [{
 		    "port": $PORT,
@@ -350,7 +352,7 @@ EOF
 }
 
 get_info() {
-    CONFIG_FILE="$v2ray_conf_dir/config.json"
+    CONFIG_FILE="$v2ray_conf_config"
     uid=$(grep id $CONFIG_FILE | head -n1 | cut -d: -f2 | tr -d \",' ')
     network="tcp"
     sni=$(grep serverName $CONFIG_FILE | cut -d: -f2 | tr -d \",' ')

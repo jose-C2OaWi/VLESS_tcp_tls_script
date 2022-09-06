@@ -71,3 +71,8 @@ ACME签发证书目录： `/usr/local/etc/v2ray/cert/acme/`
 
 * 本脚本受[wulabing](https://github.com/wulabing/V2Ray_ws-tls_bash_onekey) 和 [misaka-blog](https://github.com/misaka-gh/Xray-script) （原始库已经由于作者个人原因删除了，这只是一个存档）启发。
 * 本脚本依赖[V2Ray 官方安装脚本](https://github.com/v2fly/fhs-install-v2ray)
+
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/jose-C2OaWi/VLESS_tcp_tls_script.svg)](https://starchart.cc/jose-C2OaWi/VLESS_tcp_tls_script)

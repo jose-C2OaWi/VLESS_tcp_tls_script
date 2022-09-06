@@ -73,3 +73,6 @@ ACME certificate directory： `/usr/local/etc/v2ray/cert/acme/`
 * This script relies on [V2Ray official installlation script](https://github.com/v2fly/fhs-install-v2ray)
 
 
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/jose-C2OaWi/VLESS_tcp_tls_script.svg)](https://starchart.cc/jose-C2OaWi/VLESS_tcp_tls_script)

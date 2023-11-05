@@ -243,7 +243,7 @@ get_acme_cert() {
 
 v2ray_conf_add_acme() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
-	cat >$v2ray_conf_config <<-EOF
+	cat >$v2ray_conf_dir/config.json <<-EOF
 		{
 		  "inbounds": [{
 		    "port": $PORT,
@@ -298,7 +298,7 @@ EOF
 
 v2ray_conf_add() {
 	local uuid="$(cat '/proc/sys/kernel/random/uuid')"
-	cat >$v2ray_conf_config <<-EOF
+	cat >$v2ray_conf_dir/config.json <<-EOF
 		{
 		  "inbounds": [{
 		    "port": $PORT,
@@ -352,7 +352,7 @@ EOF
 }
 
 get_info() {
-    CONFIG_FILE="$v2ray_conf_config"
+    CONFIG_FILE="$v2ray_conf_dir/config.json"
     uid=$(grep id $CONFIG_FILE | head -n1 | cut -d: -f2 | tr -d \",' ')
     network="tcp"
     sni=$(grep serverName $CONFIG_FILE | cut -d: -f2 | tr -d \",' ')
